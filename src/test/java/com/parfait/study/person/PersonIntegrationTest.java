@@ -2,11 +2,10 @@ package com.parfait.study.person;
 
 import static io.github.benas.randombeans.api.EnhancedRandom.random;
 import static io.github.benas.randombeans.api.EnhancedRandom.randomListOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 import java.util.List;
 
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -17,7 +16,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.junit4.SpringRunner;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parfait.study.person.repository.PersonRepository;
 
 import io.restassured.RestAssured;
@@ -31,8 +29,6 @@ public class PersonIntegrationTest {
 	Person person;
 	List<Person> people;
 
-	@Autowired
-	ObjectMapper objectMapper;
 	@Autowired
 	PersonRepository personRepository;
 
@@ -61,7 +57,10 @@ public class PersonIntegrationTest {
 				then().
 				statusCode(is(HttpStatus.CREATED.value())).
 				body("name", is(willBeSaved.name)).
-				body("age", is(willBeSaved.age));
+				body("age", is(willBeSaved.age)).
+
+				log().
+				all();
 	}
 
 	@Test
@@ -75,7 +74,10 @@ public class PersonIntegrationTest {
 				then().
 				statusCode(is(HttpStatus.OK.value())).
 				body("name", is(person.name)).
-				body("age", is(person.age));
+				body("age", is(person.age)).
+
+				log().
+				all();
 	}
 
 	private void savePerson(Person person) {
@@ -92,12 +94,16 @@ public class PersonIntegrationTest {
 
 				then().
 				statusCode(is(HttpStatus.OK.value())).
-				body("_embedded.people", Matchers.hasSize(size));
+				body("_embedded.people", hasSize(greaterThanOrEqualTo(size))).
+				body("_embedded.people[0].name", is(people.get(0).name)).
+
+				log().
+				all();
 	}
 
 	private void savePeople(int size) {
 		List<Person> people = randomListOf(size, Person.class, "seq");
-		people = personRepository.save(people);
+		this.people = personRepository.save(people);
 	}
 
 	@Test
@@ -114,10 +120,54 @@ public class PersonIntegrationTest {
 				body(willBeUpdated).
 
 				when().
-				put()
-		// given
-		// when
+				patch("/api/people/{seq}", willBeUpdated.seq).
 
-		//then
+				then().
+				statusCode(is(HttpStatus.OK.value())).
+				body("name", is(willBeUpdated.name)).
+				body("age", is(person.age)).
+
+				log().
+				all();
+	}
+
+	@Test
+	public void replace() throws Exception {
+		savePerson(person);
+
+		Person willBeUpdated = new Person();
+		willBeUpdated.seq = person.seq;
+		willBeUpdated.name = "updated";
+
+		RestAssured.
+				given().
+				contentType(ContentType.JSON).
+				body(willBeUpdated).
+
+				when().
+				put("/api/people/{seq}", willBeUpdated.seq).
+
+				then().
+				statusCode(is(HttpStatus.OK.value())).
+				body("name", is(willBeUpdated.name)).
+				body("age", is(nullValue())).
+
+				log().
+				all();
+	}
+
+	@Test
+	public void delete() throws Exception {
+		savePerson(person);
+
+		RestAssured.
+				when().
+				delete("/api/people/{seq}", person.seq).
+
+				then().
+				statusCode(is(HttpStatus.NO_CONTENT.value())).
+
+				log().
+				all();
 	}
 }
